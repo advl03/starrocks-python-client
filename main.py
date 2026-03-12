@@ -210,6 +210,7 @@ def main():
                     continue
 
                 duration = time.perf_counter() - start_time
+                print(f"{len(rows)} rows in set ({duration:.3f} sec)")
 
                 if columns:
                     with Spinner("Formatting table... "):
