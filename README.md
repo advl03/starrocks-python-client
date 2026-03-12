@@ -11,6 +11,7 @@ A lightweight command-line interface for StarRocks, designed to mimic the behavi
 - **Secure Password Handling**: Prompts for password securely if not provided via command line.
 - **Formatted Results**: Automatically displays query results in a clean ASCII table.
 - **Performance Metrics**: Shows row counts and precise execution time for every query.
+- **Proxy Support**: Connect to StarRocks through an HTTP proxy using the `-x` parameter.
 
 ## Installation
 
@@ -41,6 +42,7 @@ python3 main.py -h <host> -P <port> -u <user> -m <mode>
 | `-P` | `--port` | Connection port (e.g., `9030` for MySQL, `9408` for Arrow Flight) |
 | `-u` | `--user` | Database username |
 | `-p` | `--password` | Database password. If passed without a value, you will be prompted securely. |
+| `-x` | `--proxy` | HTTP Proxy address and port (e.g., `172.18.24.129:6666`) |
 | `-m` | `--mode` | Operating mode: `1` for AlchemySQL, `2` for Arrow Flight SQL |
 | | `--prompt` | (Optional) Customize the prompt string (default: `StarRocks> `) |
 
@@ -54,6 +56,11 @@ python3 main.py -h 127.0.0.1 -P 9030 -u root -m 1
 **Connect using Arrow Flight SQL (Mode 2):**
 ```bash
 python3 main.py -h 127.0.0.1 -P 9408 -u root -m 2
+```
+
+**Connect through an HTTP Proxy:**
+```bash
+python3 main.py -h odin.service-insights.com -P 9843 -u pods-reporter -m 1 -x 172.18.24.129:6666
 ```
 
 ## Interactive Shell
