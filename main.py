@@ -29,6 +29,7 @@ class Spinner:
         self.spinner = itertools.cycle(['-', '\\', '|', '/'])
         self.stop_running = threading.Event()
         self.message = message
+        self.start_time = time.time()
         self.process = psutil.Process(os.getpid())
         self.thread = threading.Thread(target=self._spin, daemon=True)
 
@@ -38,12 +39,14 @@ class Spinner:
         while not self.stop_running.is_set():
             cpu = self.process.cpu_percent()
             memory_mb = self.process.memory_info().rss / (1024 * 1024)
-            status = f" [CPU: {cpu:.1f}% | MEM: {memory_mb:.1f} MB] "
+            elapsed = time.time() - self.start_time
+            mins, secs = divmod(int(elapsed), 60)
+            status = f" [{mins:02d}:{secs:02d}] [CPU: {cpu:.1f}% | MEM: {memory_mb:.1f} MB] "
             sys.stdout.write(f"\r{self.message}{next(self.spinner)}{status}")
             sys.stdout.flush()
             time.sleep(0.1)
         # Clear the spinner line
-        sys.stdout.write("\r" + " " * (len(self.message) + 40) + "\r")
+        sys.stdout.write("\r" + " " * (len(self.message) + 80) + "\r")
         sys.stdout.flush()
 
     def __enter__(self):
@@ -151,7 +154,9 @@ def main():
                 duration = time.perf_counter() - start_time
 
                 if columns:
-                    print(tabulate(rows, headers=columns, tablefmt="psql"))
+                    with Spinner("Formatting table... "):
+                        table_output = tabulate(rows, headers=columns, tablefmt="psql")
+                    print(table_output)
 
                 print(f"{len(rows)} rows in set ({duration:.3f} sec)\n")
 
