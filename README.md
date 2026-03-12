@@ -43,6 +43,7 @@ python3 main.py -h <host> -P <port> -u <user> -m <mode>
 | `-P` | `--port` | Connection port (e.g., `9030` for MySQL, `9408` for Arrow Flight) |
 | `-u` | `--user` | Database username |
 | `-p` | `--password` | Database password. If passed without a value, you will be prompted securely. |
+| `-d` | `--database` | Initial database to connect to. |
 | `-x` | `--proxy` | HTTP Proxy address and port (e.g., `172.18.24.129:6666`) |
 | `-m` | `--mode` | Operating mode: `1` for AlchemySQL, `2` for Arrow Flight SQL, `3` for MySQL Direct |
 | | `--prompt` | (Optional) Customize the prompt string (default: `StarRocks> `) |

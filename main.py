@@ -14,24 +14,29 @@ import itertools
 import psutil
 import os
 
-def get_flight_connection(host, port, user, password):
+def get_flight_connection(host, port, user, password, database=None):
     uri = f"grpc://{host}:{port}"
     db_kwargs = {
         "username": user,
         "password": password
     }
+    # For Arrow Flight SQL, the database is often passed as 'catalog'
+    if database:
+        db_kwargs["adbc.flight.sql.rpc.head.catalog"] = database
     return flight_sql.connect(uri=uri, db_kwargs=db_kwargs)
 
-def get_alchemy_engine(host, port, user, password):
-    conn_str = f"mysql+pymysql://{user}:{password}@{host}:{port}/"
+def get_alchemy_engine(host, port, user, password, database=None):
+    db_path = f"/{database}" if database else "/"
+    conn_str = f"mysql+pymysql://{user}:{password}@{host}:{port}{db_path}"
     return sqlalchemy.create_engine(conn_str, isolation_level="AUTOCOMMIT")
 
-def get_mysql_connection(host, port, user, password):
+def get_mysql_connection(host, port, user, password, database=None):
     return pymysql.connect(
         host=host,
         port=int(port),
         user=user,
         password=password,
+        database=database,
         autocommit=True
     )
 
@@ -104,6 +109,7 @@ def main():
     parser.add_argument("-h", "--host", type=str, help="Host")
     parser.add_argument("-u", "--user", type=str, help="User")
     parser.add_argument("-p", "--password", type=str, nargs='?', const=True, help="Password (leave empty to prompt)")
+    parser.add_argument("-d", "--database", type=str, help="Initial database")
     parser.add_argument("-x", "--proxy", type=str, help="HTTP Proxy (host:port)")
     parser.add_argument("-m", "--mode", type=int, choices=[1, 2, 3], help="Mode: 1 (AlchemySQL), 2 (Arrow Flight SQL), or 3 (MySQL Direct)")
     parser.add_argument("--prompt", type=str, default="StarRocks> ", help="Interactive prompt string")
@@ -139,19 +145,19 @@ def main():
     try:
         if args.mode == 1:
             print(f"Connecting using AlchemySQL (PyMySQL) to {args.host}:{args.port}...")
-            engine = get_alchemy_engine(args.host, args.port, args.user, password)
+            engine = get_alchemy_engine(args.host, args.port, args.user, password, args.database)
             # Test connection
             with engine.connect() as conn:
                 conn.execute(sqlalchemy.text("SELECT 1"))
         elif args.mode == 2:
             print(f"Connecting using Arrow Flight SQL to {args.host}:{args.port}...")
-            flight_conn = get_flight_connection(args.host, args.port, args.user, password)
+            flight_conn = get_flight_connection(args.host, args.port, args.user, password, args.database)
             # Test connection
             with flight_conn.cursor() as cursor:
                 pass
         elif args.mode == 3:
             print(f"Connecting using MySQL (PyMySQL) to {args.host}:{args.port}...")
-            mysql_conn = get_mysql_connection(args.host, args.port, args.user, password)
+            mysql_conn = get_mysql_connection(args.host, args.port, args.user, password, args.database)
             # Test connection
             with mysql_conn.cursor() as cursor:
                 cursor.execute("SELECT 1")
