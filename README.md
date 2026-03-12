@@ -73,5 +73,12 @@ StarRocks> exit;
 Bye
 ```
 
+The shell also shows the % of CPU and RAM consumed during the execution of the query. There is also a nice spinner animation while the query is executing so you know that the query is running and not frozen.
+
+```sql
+StarRocks> SELECT * FROM very.big_table;
+Executing query... / [CPU: 0.2% | MEM: 6.4 MB]
+```   
+
 ## License
 MIT (or your specific license)
