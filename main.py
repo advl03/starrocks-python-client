@@ -22,7 +22,7 @@ def get_flight_connection(host, port, user, password):
 
 def get_alchemy_engine(host, port, user, password):
     conn_str = f"mysql+pymysql://{user}:{password}@{host}:{port}/"
-    return sqlalchemy.create_engine(conn_str)
+    return sqlalchemy.create_engine(conn_str, isolation_level="AUTOCOMMIT")
 
 class Spinner:
     def __init__(self, message="Executing query... "):
@@ -106,7 +106,7 @@ def main():
 
     print("Welcome to the StarRocks Python REPL monitor.")
     print("Commands end with ;")
-    
+
     session = PromptSession(history=InMemoryHistory())
     buffer = []
 
@@ -117,7 +117,7 @@ def main():
             
             if not line and not buffer:
                 continue
-                
+
             buffer.append(line)
             sql = " ".join(buffer)
 
@@ -126,16 +126,15 @@ def main():
 
             if sql.endswith(";"):
                 buffer = [] # Reset buffer for next query
-                
+
                 start_time = time.perf_counter()
                 rows, columns = [], []
-                
+
                 try:
                     with Spinner():
                         if args.mode == 1:
                             with engine.connect() as conn:
                                 result = conn.execute(sqlalchemy.text(sql))
-                                conn.commit()
                                 if result.returns_rows:
                                     rows = result.fetchall()
                                     columns = result.keys()
@@ -150,12 +149,12 @@ def main():
                     continue
 
                 duration = time.perf_counter() - start_time
-                
+
                 if columns:
                     print(tabulate(rows, headers=columns, tablefmt="psql"))
-                
+
                 print(f"{len(rows)} rows in set ({duration:.3f} sec)\n")
-                
+
         except KeyboardInterrupt:
             buffer = []
             print("^C")
