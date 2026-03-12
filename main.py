@@ -6,6 +6,7 @@ import socket
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 import sqlalchemy
+import pymysql
 import adbc_driver_flightsql.dbapi as flight_sql
 from tabulate import tabulate
 import threading
@@ -24,6 +25,15 @@ def get_flight_connection(host, port, user, password):
 def get_alchemy_engine(host, port, user, password):
     conn_str = f"mysql+pymysql://{user}:{password}@{host}:{port}/"
     return sqlalchemy.create_engine(conn_str, isolation_level="AUTOCOMMIT")
+
+def get_mysql_connection(host, port, user, password):
+    return pymysql.connect(
+        host=host,
+        port=int(port),
+        user=user,
+        password=password,
+        autocommit=True
+    )
 
 def _proxy_connect(proxy_host, proxy_port, real_connect, address, timeout=None, source_address=None):
     proxy_sock = real_connect((proxy_host, proxy_port), timeout, source_address)
@@ -95,7 +105,7 @@ def main():
     parser.add_argument("-u", "--user", type=str, help="User")
     parser.add_argument("-p", "--password", type=str, nargs='?', const=True, help="Password (leave empty to prompt)")
     parser.add_argument("-x", "--proxy", type=str, help="HTTP Proxy (host:port)")
-    parser.add_argument("-m", "--mode", type=int, choices=[1, 2], help="Mode: 1 (AlchemySQL) or 2 (Arrow Flight SQL)")
+    parser.add_argument("-m", "--mode", type=int, choices=[1, 2, 3], help="Mode: 1 (AlchemySQL), 2 (Arrow Flight SQL), or 3 (MySQL Direct)")
     parser.add_argument("--prompt", type=str, default="StarRocks> ", help="Interactive prompt string")
     parser.add_argument("--help", action="help", help="Show this help message and exit")
 
@@ -124,6 +134,7 @@ def main():
 
     engine = None
     flight_conn = None
+    mysql_conn = None
 
     try:
         if args.mode == 1:
@@ -138,6 +149,12 @@ def main():
             # Test connection
             with flight_conn.cursor() as cursor:
                 pass
+        elif args.mode == 3:
+            print(f"Connecting using MySQL (PyMySQL) to {args.host}:{args.port}...")
+            mysql_conn = get_mysql_connection(args.host, args.port, args.user, password)
+            # Test connection
+            with mysql_conn.cursor() as cursor:
+                cursor.execute("SELECT 1")
     except Exception as e:
         print(f"Failed to connect to StarRocks: {e}")
         sys.exit(1)
@@ -182,6 +199,12 @@ def main():
                                 if cursor.description:
                                     columns = [desc[0] for desc in cursor.description]
                                     rows = cursor.fetchall()
+                        elif args.mode == 3:
+                            with mysql_conn.cursor() as cursor:
+                                cursor.execute(sql)
+                                if cursor.description:
+                                    columns = [desc[0] for desc in cursor.description]
+                                    rows = cursor.fetchall()
                 except Exception as e:
                     print(f"Error executing statement: {e}")
                     continue
@@ -206,6 +229,8 @@ def main():
         engine.dispose()
     if flight_conn:
         flight_conn.close()
+    if mysql_conn:
+        mysql_conn.close()
     print("Bye")
 
 if __name__ == "__main__":
