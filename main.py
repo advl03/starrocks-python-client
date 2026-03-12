@@ -2,6 +2,7 @@ import argparse
 import getpass
 import sys
 import time
+import socket
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 import sqlalchemy
@@ -23,6 +24,36 @@ def get_flight_connection(host, port, user, password):
 def get_alchemy_engine(host, port, user, password):
     conn_str = f"mysql+pymysql://{user}:{password}@{host}:{port}/"
     return sqlalchemy.create_engine(conn_str, isolation_level="AUTOCOMMIT")
+
+def _proxy_connect(proxy_host, proxy_port, real_connect, address, timeout=None, source_address=None):
+    proxy_sock = real_connect((proxy_host, proxy_port), timeout, source_address)
+    connect_cmd = f'CONNECT {address[0]}:{address[1]} HTTP/1.1\r\nHost: {address[0]}\r\n\r\n'.encode()
+    proxy_sock.sendall(connect_cmd)
+    response = proxy_sock.recv(4096)
+    if not (response.startswith(b'HTTP/1.1 200') or response.startswith(b'HTTP/1.0 200')):
+        proxy_sock.close()
+        raise OSError(f'Proxy CONNECT failed: {response!r}')
+    return proxy_sock
+
+def setup_proxy(proxy_str):
+    if not proxy_str:
+        return
+    
+    try:
+        if ':' not in proxy_str:
+            raise ValueError
+        proxy_host, proxy_port = proxy_str.rsplit(':', 1)
+        proxy_port = int(proxy_port)
+    except ValueError:
+        print(f"Error: Invalid proxy format '{proxy_str}'. Expected 'host:port'.")
+        sys.exit(1)
+
+    real_create_connection = socket.create_connection
+
+    def proxy_create_connection(address, timeout=None, source_address=None):
+        return _proxy_connect(proxy_host, proxy_port, real_create_connection, address, timeout, source_address)
+
+    socket.create_connection = proxy_create_connection
 
 class Spinner:
     def __init__(self, message="Executing query... "):
@@ -63,6 +94,7 @@ def main():
     parser.add_argument("-h", "--host", type=str, help="Host")
     parser.add_argument("-u", "--user", type=str, help="User")
     parser.add_argument("-p", "--password", type=str, nargs='?', const=True, help="Password (leave empty to prompt)")
+    parser.add_argument("-x", "--proxy", type=str, help="HTTP Proxy (host:port)")
     parser.add_argument("-m", "--mode", type=int, choices=[1, 2], help="Mode: 1 (AlchemySQL) or 2 (Arrow Flight SQL)")
     parser.add_argument("--prompt", type=str, default="StarRocks> ", help="Interactive prompt string")
     parser.add_argument("--help", action="help", help="Show this help message and exit")
@@ -72,6 +104,9 @@ def main():
         sys.exit(1)
 
     args = parser.parse_args()
+
+    if args.proxy:
+        setup_proxy(args.proxy)
 
     if not args.port or not args.host or not args.user or not args.mode:
         print("Error: Required arguments missing (-P, -h, -u, -m).")
