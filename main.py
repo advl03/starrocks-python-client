@@ -118,7 +118,7 @@ def main():
     parser.add_argument("-p", "--password", type=str, nargs='?', const=True, help="Password (leave empty to prompt)")
     parser.add_argument("-d", "--database", type=str, help="Initial database")
     parser.add_argument("-x", "--proxy", type=str, help="HTTP Proxy (host:port)")
-    parser.add_argument("-m", "--mode", type=int, choices=[1, 2, 3, 4], help="Mode: 1 (AlchemySQL), 2 (Arrow Flight SQL), 3 (MySQL Direct) or 4 (Testing stream results)")
+    parser.add_argument("-m", "--mode", type=int, choices=[1, 2, 3, 4], help="Mode: 1 (AlchemySQL), 2 (Arrow Flight SQL), 3 (MySQL Direct) or 4 (AlchemySQL stream mode)")
     parser.add_argument("-mrb", "--max-row-buffer", type=int, help="Max number of rows to buffer in memory when streaming results from DB(only for mode 4)")
     parser.add_argument("--prompt", type=str, default="StarRocks> ", help="Interactive prompt string")
     parser.add_argument("--help", action="help", help="Show this help message and exit")
@@ -151,7 +151,7 @@ def main():
     mysql_conn = None
 
     try:
-        if args.mode == 1 or args.mode == 4:
+        if args.mode == 1:
             print(f"Connecting using AlchemySQL (PyMySQL) to {args.host}:{args.port}...")
             engine = get_alchemy_engine(args.host, args.port, args.user, password, args.database)
             # Test connection
@@ -169,6 +169,13 @@ def main():
             # Test connection
             with mysql_conn.cursor() as cursor:
                 cursor.execute("SELECT 1")
+        elif args.mode == 4:
+            print(f"Connecting using AlchemySQL (PyMySQL) to {args.host}:{args.port}...")
+            print(f"Results will be writed to CSV instead of printed in console.")
+            engine = get_alchemy_engine(args.host, args.port, args.user, password, args.database)
+            # Test connection
+            with engine.connect() as conn:
+                conn.execute(sqlalchemy.text("SELECT 1"))
     except Exception as e:
         print(f"Failed to connect to StarRocks: {e}")
         sys.exit(1)
@@ -201,6 +208,7 @@ def main():
 
                 avg_cpu = 0.0
                 avg_memory_mb = 0.0
+                max_row_buffer = int(args.max_row_buffer) if args.max_row_buffer else 1000
                 try:
                     with Spinner() as spinner:
                         if args.mode == 1:
@@ -227,7 +235,7 @@ def main():
                                     csvfile, delimiter=';', lineterminator='\n', escapechar='\\', quoting=csv.QUOTE_NONE
                                 )
                                 with engine.connect() as conn:
-                                    with conn.execution_options(stream_results=True, max_row_buffer=int(args.max_row_buffer)).execute(
+                                    with conn.execution_options(stream_results=True, max_row_buffer=max_row_buffer).execute(
                                         sqlalchemy.text(sql)
                                     ).mappings() as result:
                                         exec_duration = time.perf_counter() - start_time
@@ -235,6 +243,7 @@ def main():
                                             csv_writer.writerow(list(row.values()) + [''])
                             writing_duration = time.perf_counter() - start_time - exec_duration
                             print(f"\nCSV writing ended (exec query {exec_duration:.3f} sec, format {writing_duration:.3f} sec) [Avg CPU: {avg_cpu:.1f}% | Avg MEM: {avg_memory_mb:.1f} MB]\n")
+                            print(f'Results have been written to `query_stream_results.csv` in the root directory with size {os.stat("query_stream_results.csv").st_size / 1000} KB.\n')
 
                     n = spinner.sample_count or 1
                     avg_cpu = spinner.total_cpu / n
